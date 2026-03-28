@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CO₂ Emission Predictor · KNN</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --c1:#00f5d4;--c2:#f72585;--c3:#7209b7;--c4:#4361ee;--c5:#ffd60a;--c6:#06ffd4;
+  --bg:#06070f;--bg2:#0d0f1e;--bg3:#12152a;--card:#0e1020;
+  --border1:rgba(0,245,212,0.18);--border2:rgba(247,37,133,0.2);
+  --text:#e8f0ff;--muted:#7888bb;
+  --glow1:0 0 20px rgba(0,245,212,0.35);
+  --glow2:0 0 20px rgba(247,37,133,0.35);
+  --glow3:0 0 20px rgba(67,97,238,0.4);
+}
+body{
+  font-family:'DM Sans',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  padding:2rem 2rem 3rem;
+  background-image:
+    radial-gradient(ellipse 60% 40% at 10% 0%, rgba(114,9,183,0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 30% at 90% 100%, rgba(0,245,212,0.1) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(247,37,133,0.05) 0%, transparent 70%);
+}
+
+/* ── HEADER ── */
+.header{margin-bottom:2rem;}
+.header-top{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:6px;}
+.title{
+  font-family:'Orbitron',sans-serif;
+  font-size:1.8rem;font-weight:900;
+  background:linear-gradient(90deg,var(--c1),var(--c2),var(--c4));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  text-shadow:none;letter-spacing:0.04em;
+}
+.tag{
+  font-size:0.7rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;
+  padding:4px 12px;border-radius:20px;
+  background:rgba(0,245,212,0.1);border:1px solid rgba(0,245,212,0.4);
+  color:var(--c1);margin-bottom:4px;
+}
+.subtitle{font-size:0.82rem;color:var(--muted);}
+
+/* ── METRIC CARDS ── */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:1.8rem;}
+.met{
+  position:relative;overflow:hidden;
+  background:var(--card);
+  border-radius:16px;padding:1.1rem 1.2rem;
+  border:1px solid transparent;
+}
+.met::before{
+  content:'';position:absolute;inset:0;border-radius:16px;
+  padding:1px;
+  background:var(--grad);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  pointer-events:none;
+}
+.met-0{--grad:linear-gradient(135deg,rgba(0,245,212,0.5),rgba(0,245,212,0.05));}
+.met-1{--grad:linear-gradient(135deg,rgba(67,97,238,0.6),rgba(67,97,238,0.05));}
+.met-2{--grad:linear-gradient(135deg,rgba(0,245,212,0.5),rgba(114,9,183,0.3));}
+.met-3{--grad:linear-gradient(135deg,rgba(255,214,10,0.5),rgba(247,37,133,0.2));}
+.met-icon{font-size:1.5rem;margin-bottom:6px;}
+.met-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:4px;}
+.met-value{font-family:'Orbitron',sans-serif;font-size:1.5rem;font-weight:700;line-height:1;}
+.met-sub{font-size:0.7rem;color:var(--muted);margin-top:4px;}
+.tc1{color:var(--c1)}.tc2{color:var(--c4)}.tc3{color:#a0f0d8}.tc4{color:var(--c5)}
+
+/* Glow dot */
+.met-glow{
+  position:absolute;top:-20px;right:-20px;
+  width:80px;height:80px;border-radius:50%;
+  opacity:0.15;filter:blur(20px);
+}
+.met-0 .met-glow{background:var(--c1);}
+.met-1 .met-glow{background:var(--c4);}
+.met-2 .met-glow{background:var(--c1);}
+.met-3 .met-glow{background:var(--c5);}
+
+/* ── MAIN GRID ── */
+.main{display:grid;grid-template-columns:420px 1fr;gap:18px;}
+
+/* ── CARD ── */
+.card{
+  background:var(--card);border-radius:20px;
+  border:1px solid var(--border1);padding:1.4rem;
+  position:relative;overflow:hidden;
+}
+.card::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--ctop,linear-gradient(90deg,var(--c1),var(--c4)));
+}
+.card-pink::after{background:linear-gradient(90deg,var(--c2),var(--c3));}
+.card-gold::after{background:linear-gradient(90deg,var(--c5),var(--c2));}
+.card+.card{margin-top:16px;}
+
+.section-label{
+  font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;
+  color:var(--c1);margin-bottom:1rem;display:flex;align-items:center;gap:8px;
+}
+.section-label::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c1);box-shadow:0 0 8px var(--c1);}
+.section-label.pink{color:var(--c2);}
+.section-label.pink::before{background:var(--c2);box-shadow:0 0 8px var(--c2);}
+.section-label.gold{color:var(--c5);}
+.section-label.gold::before{background:var(--c5);box-shadow:0 0 8px var(--c5);}
+
+/* ── SLIDERS ── */
+.slider-group{margin-bottom:1.1rem;}
+.slider-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+.slider-top span:first-child{font-size:0.82rem;color:var(--muted);}
+.slider-vl{
+  font-family:'Orbitron',sans-serif;font-size:0.82rem;font-weight:700;
+  color:var(--c1);background:rgba(0,245,212,0.08);
+  padding:2px 10px;border-radius:10px;border:1px solid rgba(0,245,212,0.2);
+}
+.slider-vl.pink{color:var(--c2);background:rgba(247,37,133,0.08);border-color:rgba(247,37,133,0.2);}
+.slider-vl.gold{color:var(--c5);background:rgba(255,214,10,0.08);border-color:rgba(255,214,10,0.2);}
+
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:5px;border-radius:3px;
+  background:rgba(255,255,255,0.07);outline:none;
+  transition:background 0.2s;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+  background:linear-gradient(135deg,var(--c1),var(--c4));
+  cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 10px rgba(0,245,212,0.6);
+  transition:transform 0.1s;
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2);}
+input[type=range]::-moz-range-thumb{
+  width:16px;height:16px;border-radius:50%;
+  background:linear-gradient(135deg,var(--c1),var(--c4));
+  cursor:pointer;border:2px solid var(--bg);
+}
+
+/* Slider track fill via CSS */
+.slider-eng::-webkit-slider-runnable-track{background:linear-gradient(90deg,rgba(0,245,212,0.4) var(--pct,50%),rgba(255,255,255,0.07) var(--pct,50%));border-radius:3px;}
+.slider-fc::-webkit-slider-thumb{background:linear-gradient(135deg,#7209b7,var(--c2));}
+.slider-fc::-webkit-slider-thumb{box-shadow:0 0 10px rgba(247,37,133,0.6);}
+.slider-k::-webkit-slider-thumb{background:linear-gradient(135deg,var(--c5),var(--c2));box-shadow:0 0 10px rgba(255,214,10,0.6);}
+
+/* ── FUEL BUTTONS ── */
+.fuel-label{font-size:0.72rem;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em;}
+.fuel-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.1rem;}
+.fbtn{
+  padding:9px 0;font-size:0.78rem;font-weight:600;
+  border-radius:12px;cursor:pointer;
+  border:1px solid rgba(255,255,255,0.1);
+  background:rgba(255,255,255,0.04);
+  color:var(--muted);transition:all 0.18s;text-align:center;
+}
+.fbtn:hover{border-color:rgba(0,245,212,0.4);color:var(--c1);background:rgba(0,245,212,0.07);}
+.fbtn.on{
+  background:linear-gradient(135deg,rgba(0,245,212,0.15),rgba(67,97,238,0.15));
+  border-color:var(--c1);color:var(--c1);
+  box-shadow:0 0 12px rgba(0,245,212,0.2);
+}
+.fbtn.on-pink{
+  background:linear-gradient(135deg,rgba(247,37,133,0.15),rgba(114,9,183,0.15));
+  border-color:var(--c2);color:var(--c2);
+  box-shadow:0 0 12px rgba(247,37,133,0.2);
+}
+
+/* ── K ROW ── */
+.k-row{display:flex;align-items:center;gap:12px;margin-bottom:1.2rem;}
+.k-row label{font-size:0.8rem;color:var(--muted);white-space:nowrap;}
+
+/* ── PREDICT BUTTON ── */
+.pred-btn{
+  width:100%;padding:13px;
+  font-family:'Orbitron',sans-serif;font-size:0.85rem;font-weight:700;letter-spacing:0.06em;
+  border:none;border-radius:14px;cursor:pointer;
+  background:linear-gradient(135deg,var(--c2) 0%,var(--c3) 40%,var(--c4) 100%);
+  color:#fff;
+  box-shadow:0 4px 24px rgba(247,37,133,0.4);
+  transition:transform 0.1s,box-shadow 0.2s,opacity 0.15s;
+  position:relative;overflow:hidden;
+}
+.pred-btn::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.15),transparent);
+  border-radius:14px;
+}
+.pred-btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(247,37,133,0.55);}
+.pred-btn:active{transform:scale(0.98);}
+
+/* ── RESULT BOX ── */
+.result-box{
+  margin-top:1.1rem;display:none;
+  background:linear-gradient(135deg,rgba(0,245,212,0.06),rgba(67,97,238,0.06));
+  border:1px solid rgba(0,245,212,0.2);
+  border-radius:16px;padding:1.2rem;
+  animation:fadeSlide 0.3s ease;
+}
+@keyframes fadeSlide{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.result-box.show{display:block;}
+.res-main{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.co2-num{
+  font-family:'Orbitron',sans-serif;font-size:3.2rem;font-weight:900;line-height:1;
+  background:linear-gradient(135deg,var(--c1),var(--c4));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 12px rgba(0,245,212,0.4));
+}
+.co2-unit{font-size:0.9rem;color:var(--muted);font-weight:400;}
+.res-info{font-size:0.77rem;color:var(--muted);line-height:2;text-align:right;}
+.rtag{
+  display:inline-block;margin-top:6px;
+  padding:3px 12px;border-radius:20px;font-size:0.72rem;font-weight:700;letter-spacing:0.05em;
+}
+.rtag-low{background:rgba(0,245,212,0.15);border:1px solid rgba(0,245,212,0.4);color:var(--c1);}
+.rtag-mid{background:rgba(255,214,10,0.15);border:1px solid rgba(255,214,10,0.4);color:var(--c5);}
+.rtag-high{background:rgba(247,37,133,0.15);border:1px solid rgba(247,37,133,0.4);color:var(--c2);}
+
+/* ── NEIGHBOR BARS ── */
+.nb-head{font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin:1rem 0 8px;}
+.nb-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.nb-rank{
+  width:20px;height:20px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;font-family:'Orbitron',sans-serif;
+  background:linear-gradient(135deg,rgba(0,245,212,0.2),rgba(67,97,238,0.2));
+  border:1px solid rgba(0,245,212,0.3);color:var(--c1);
+}
+.nb-track{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;}
+.nb-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--c1),var(--c4));}
+.nb-val{font-size:0.78rem;font-weight:600;min-width:58px;text-align:right;color:var(--text);font-family:'Orbitron',sans-serif;font-size:0.72rem;}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:4px;margin-bottom:1.1rem;background:rgba(255,255,255,0.04);border-radius:12px;padding:4px;}
+.tab{
+  flex:1;padding:7px 10px;font-size:0.78rem;font-weight:600;
+  border-radius:9px;cursor:pointer;color:var(--muted);
+  text-align:center;transition:all 0.18s;border:1px solid transparent;
+}
+.tab.on{
+  background:linear-gradient(135deg,rgba(0,245,212,0.15),rgba(67,97,238,0.15));
+  color:var(--c1);border-color:rgba(0,245,212,0.25);
+}
+.panel{display:none;}.panel.on{display:block;}
+
+/* ── EVAL LIST ── */
+.ev-list{display:flex;flex-direction:column;gap:7px;}
+.ev-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:9px 14px;border-radius:11px;
+  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
+}
+.ev-name{font-size:0.8rem;color:var(--muted);}
+.ev-sub{font-size:0.68rem;color:rgba(120,136,187,0.6);}
+.ev-val{font-family:'Orbitron',sans-serif;font-size:0.82rem;font-weight:700;color:var(--c1);}
+
+/* ── EXPLORE TABS ── */
+.exp-tabs{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;}
+.etab{
+  padding:5px 14px;font-size:0.75rem;font-weight:600;
+  border-radius:20px;cursor:pointer;
+  border:1px solid rgba(255,255,255,0.1);
+  background:rgba(255,255,255,0.03);color:var(--muted);
+  transition:all 0.15s;
+}
+.etab:hover{border-color:rgba(0,245,212,0.4);color:var(--c1);}
+.etab.on{
+  background:linear-gradient(135deg,rgba(0,245,212,0.12),rgba(67,97,238,0.12));
+  border-color:var(--c1);color:var(--c1);
+}
+
+/* Chart containers */
+.ch{position:relative;width:100%;}
+.ch220{height:220px;}.ch260{height:260px;}
+
+/* Right col */
+.rcol{display:flex;flex-direction:column;gap:16px;}
+
+/* Decorative floating circles */
+.orb{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0;animation:orbFloat 8s ease-in-out infinite;}
+.orb1{width:300px;height:300px;background:rgba(114,9,183,0.2);top:-80px;right:-80px;animation-delay:0s;}
+.orb2{width:250px;height:250px;background:rgba(0,245,212,0.12);bottom:-80px;left:-60px;animation-delay:3s;}
+.orb3{width:200px;height:200px;background:rgba(247,37,133,0.1);top:40%;right:10%;animation-delay:5s;}
+@keyframes orbFloat{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-20px) scale(1.05);}}
+
+/* Pulse animation on result */
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,245,212,0.3);}50%{box-shadow:0 0 0 8px rgba(0,245,212,0);}}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;background:var(--bg);}
+::-webkit-scrollbar-thumb{background:rgba(0,245,212,0.2);border-radius:3px;}
+
+@media(max-width:880px){.main{grid-template-columns:1fr;}.metrics{grid-template-columns:1fr 1fr;}}
+@media(max-width:460px){body{padding:1rem;}.metrics{grid-template-columns:1fr 1fr;}.title{font-size:1.2rem;}}
+</style>
+</head>
+<body>
+<!-- Decorative orbs -->
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-top">
+    <h1 class="title">CO₂ EMISSION PREDICTOR</h1>
+    <span class="tag">KNN Regressor · ML</span>
+  </div>
+  <p class="subtitle">Trained on FuelConsumption.csv · 1,067 real 2014 Canadian vehicles · KNN in pure JavaScript</p>
+</div>
+
+<!-- METRIC CARDS -->
+<div class="metrics">
+  <div class="met met-0"><div class="met-glow"></div><div class="met-icon">🚗</div><div class="met-label">Dataset</div><div class="met-value tc1">1,067</div><div class="met-sub">real vehicles</div></div>
+  <div class="met met-1"><div class="met-glow"></div><div class="met-icon">📈</div><div class="met-label">R² Score</div><div class="met-value tc2" id="r2-m">0.9891</div><div class="met-sub">k = 5</div></div>
+  <div class="met met-2"><div class="met-glow"></div><div class="met-icon">🎯</div><div class="met-label">MAE</div><div class="met-value tc3" id="mae-m">3.82</div><div class="met-sub">g/km error</div></div>
+  <div class="met met-3"><div class="met-glow"></div><div class="met-icon">⚡</div><div class="met-label">RMSE</div><div class="met-value tc4" id="rmse-m">6.70</div><div class="met-sub">root mean sq.</div></div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="main">
+
+  <!-- LEFT PANEL -->
+  <div>
+    <div class="card">
+      <div class="section-label">Input features</div>
+
+      <div class="slider-group">
+        <div class="slider-top"><span>Engine size</span><span class="slider-vl" id="v-eng">3.0 L</span></div>
+        <input type="range" id="s-eng" min="1.0" max="8.4" step="0.1" value="3.0"
+          oninput="document.getElementById('v-eng').textContent=parseFloat(this.value).toFixed(1)+' L'">
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-top"><span>Cylinders</span><span class="slider-vl pink" id="v-cyl">6</span></div>
+        <input type="range" class="slider-fc" id="s-cyl" min="3" max="12" step="1" value="6"
+          oninput="document.getElementById('v-cyl').textContent=this.value">
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-top"><span>Fuel consumption (combined)</span><span class="slider-vl gold" id="v-fc">11.0 L/100km</span></div>
+        <input type="range" class="slider-k" id="s-fc" min="4.7" max="25.8" step="0.1" value="11.0"
+          oninput="document.getElementById('v-fc').textContent=parseFloat(this.value).toFixed(1)+' L/100km'">
+      </div>
+
+      <div class="fuel-label">Fuel type &nbsp;<span style="font-size:0.65rem;opacity:0.5;">(LabelEncoder: D=0, E=1, X=2, Z=3)</span></div>
+      <div class="fuel-grid">
+        <button class="fbtn on" id="fb-X" onclick="setFuel(2,'X')">⛽ X</button>
+        <button class="fbtn" id="fb-Z" onclick="setFuel(3,'Z')">✨ Z</button>
+        <button class="fbtn" id="fb-D" onclick="setFuel(0,'D')">🛢 D</button>
+        <button class="fbtn" id="fb-E" onclick="setFuel(1,'E')">🌿 E</button>
+      </div>
+
+      <div class="k-row">
+        <label>Neighbors (k)</label>
+        <input type="range" class="slider-k" id="s-k" min="1" max="15" step="1" value="5"
+          oninput="K=parseInt(this.value);document.getElementById('v-k').textContent=this.value">
+        <span class="slider-vl gold" id="v-k" style="min-width:28px;text-align:center;">5</span>
+      </div>
+
+      <button class="pred-btn" onclick="runPredict()">▶ &nbsp;PREDICT CO₂ EMISSIONS</button>
+
+      <div class="result-box" id="result-box">
+        <div class="res-main">
+          <div>
+            <div class="co2-num" id="co2-val">—</div>
+            <div class="co2-unit"> g/km CO₂</div>
+            <div id="rtag-area"></div>
+          </div>
+          <div class="res-info" id="res-info"></div>
+        </div>
+        <div class="nb-head">Nearest neighbors</div>
+        <div id="nb-rows"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT COL -->
+  <div class="rcol">
+    <div class="card card-pink">
+      <div class="section-label pink">Model evaluation</div>
+      <div class="tabs">
+        <div class="tab on" onclick="stab('metrics')" id="t-metrics">Metrics</div>
+        <div class="tab" onclick="stab('scatter')" id="t-scatter">Predicted vs Actual</div>
+      </div>
+      <div class="panel on" id="p-metrics">
+        <div class="ev-list" id="ev-list">
+          <div style="font-size:0.82rem;color:var(--muted);padding:6px 0;">Click Predict to run the model and see evaluation metrics.</div>
+        </div>
+      </div>
+      <div class="panel" id="p-scatter">
+        <div class="ch ch260"><canvas id="sc-chart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card card-gold">
+      <div class="section-label gold">Dataset insights</div>
+      <div class="exp-tabs">
+        <div class="etab on" onclick="showBar('eng')" id="et-eng">By engine size</div>
+        <div class="etab" onclick="showBar('ft')" id="et-ft">By fuel type</div>
+        <div class="etab" onclick="showBar('vc')" id="et-vc">By vehicle class</div>
+      </div>
+      <div class="ch ch220"><canvas id="bar-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DS=
+[[2.0, 4.0, 8.5, 3.0, 196.0], [2.4, 4.0, 9.6, 3.0, 221.0], [1.5, 4.0, 5.9, 3.0, 136.0], [3.5, 6.0, 11.1, 3.0, 255.0], [3.5, 6.0, 10.6, 3.0, 244.0], [3.5, 6.0, 10.0, 3.0, 230.0], [3.5, 6.0, 10.1, 3.0, 232.0], [3.7, 6.0, 11.1, 3.0, 255.0], [3.7, 6.0, 11.6, 3.0, 267.0], [2.4, 4.0, 9.2, 3.0, 212.0], [2.4, 4.0, 9.8, 3.0, 225.0], [3.5, 6.0, 10.4, 3.0, 239.0], [5.9, 12.0, 15.6, 3.0, 359.0], [5.9, 12.0, 15.6, 3.0, 359.0], [4.7, 8.0, 14.7, 3.0, 338.0], [4.7, 8.0, 15.4, 3.0, 354.0], [4.7, 8.0, 14.7, 3.0, 338.0], [4.7, 8.0, 15.4, 3.0, 354.0], [5.9, 12.0, 15.6, 3.0, 359.0], [2.0, 4.0, 8.8, 3.0, 202.0], [2.0, 4.0, 10.0, 3.0, 230.0], [2.0, 4.0, 9.3, 3.0, 214.0], [2.0, 4.0, 10.0, 3.0, 230.0], [2.0, 4.0, 10.0, 3.0, 230.0], [2.0, 4.0, 9.3, 3.0, 214.0], [2.0, 4.0, 10.2, 3.0, 235.0], [3.0, 6.0, 10.9, 3.0, 251.0], [3.0, 6.0, 8.3, 0.0, 224.0], [3.0, 6.0, 11.2, 3.0, 258.0], [3.0, 6.0, 8.3, 0.0, 224.0], [3.0, 6.0, 11.2, 3.0, 258.0], [4.0, 8.0, 11.3, 3.0, 260.0], [3.0, 6.0, 8.4, 0.0, 227.0], [3.0, 6.0, 11.2, 3.0, 258.0], [4.0, 8.0, 12.5, 3.0, 288.0], [6.3, 12.0, 15.7, 3.0, 361.0], [3.0, 6.0, 8.5, 0.0, 230.0], [2.0, 4.0, 10.5, 3.0, 242.0], [2.0, 4.0, 10.4, 3.0, 239.0], [3.0, 6.0, 11.2, 3.0, 258.0], [2.0, 4.0, 9.2, 3.0, 212.0], [3.0, 6.0, 9.1, 0.0, 246.0], [3.0, 6.0, 13.2, 3.0, 304.0], [3.0, 6.0, 10.9, 0.0, 294.0], [4.2, 8.0, 14.6, 3.0, 336.0], [4.2, 8.0, 17.7, 3.0, 407.0], [5.2, 10.0, 15.4, 3.0, 354.0], [5.2, 10.0, 17.8, 3.0, 409.0], [4.2, 8.0, 14.6, 3.0, 336.0], [4.2, 8.0, 17.7, 3.0, 407.0], [5.2, 10.0, 15.4, 3.0, 354.0], [5.2, 10.0, 17.8, 3.0, 409.0], [4.2, 8.0, 13.3, 3.0, 306.0], [4.2, 8.0, 13.4, 3.0, 308.0], [4.0, 8.0, 12.6, 3.0, 290.0], [3.0, 6.0, 11.4, 3.0, 262.0], [3.0, 6.0, 12.4, 3.0, 285.0], [3.0, 6.0, 11.4, 3.0, 262.0], [3.0, 6.0, 12.4, 3.0, 285.0], [3.0, 6.0, 11.6, 3.0, 267.0], [4.0, 8.0, 12.2, 3.0, 281.0], [4.0, 8.0, 12.2, 3.0, 281.0], [4.0, 8.0, 12.9, 3.0, 297.0], [3.0, 6.0, 12.7, 3.0, 292.0], [2.0, 4.0, 9.1, 3.0, 209.0], [2.0, 4.0, 9.1, 3.0, 209.0], [2.0, 4.0, 10.3, 3.0, 237.0], [2.0, 4.0, 10.3, 3.0, 237.0], [4.0, 8.0, 12.9, 3.0, 297.0], [6.0, 12.0, 15.5, 3.0, 356.0], [4.0, 8.0, 13.9, 3.0, 320.0], [6.0, 12.0, 16.5, 3.0, 380.0], [4.0, 8.0, 14.0, 3.0, 322.0], [6.0, 12.0, 16.5, 3.0, 380.0], [6.0, 12.0, 16.5, 3.0, 380.0], [6.8, 8.0, 19.0, 3.0, 437.0], [2.0, 4.0, 8.4, 3.0, 193.0], [2.0, 4.0, 8.7, 3.0, 200.0], [2.0, 4.0, 8.8, 3.0, 202.0], [2.0, 4.0, 6.7, 0.0, 181.0], [2.0, 4.0, 6.7, 0.0, 181.0], [2.0, 4.0, 8.4, 3.0, 193.0], [2.0, 4.0, 8.7, 3.0, 200.0], [2.0, 4.0, 9.1, 3.0, 209.0], [2.0, 4.0, 9.1, 3.0, 209.0], [2.0, 4.0, 9.1, 3.0, 209.0], [3.0, 6.0, 9.6, 3.0, 221.0], [3.0, 6.0, 10.0, 3.0, 230.0], [3.0, 6.0, 9.9, 3.0, 228.0], [3.0, 6.0, 10.3, 3.0, 237.0], [3.0, 6.0, 10.1, 3.0, 232.0], [2.0, 4.0, 8.4, 3.0, 193.0], [2.0, 4.0, 8.7, 3.0, 200.0], [2.0, 4.0, 9.1, 3.0, 209.0], [3.0, 6.0, 9.6, 3.0, 221.0], [3.0, 6.0, 10.0, 3.0, 230.0], [3.0, 6.0, 9.9, 3.0, 228.0], [3.0, 6.0, 10.3, 3.0, 237.0], [2.0, 4.0, 8.8, 3.0, 202.0], [2.0, 4.0, 9.1, 3.0, 209.0], [3.0, 6.0, 7.9, 0.0, 213.0], [3.0, 6.0, 10.1, 3.0, 232.0], [3.0, 6.0, 10.7, 3.0, 246.0], [4.4, 8.0, 12.2, 3.0, 281.0], [4.4, 8.0, 12.7, 3.0, 292.0], [3.0, 6.0, 10.1, 3.0, 232.0], [4.4, 8.0, 12.7, 3.0, 292.0], [4.4, 8.0, 12.2, 3.0, 281.0], [4.4, 8.0, 12.7, 3.0, 292.0], [3.0, 6.0, 10.7, 3.0, 246.0], [4.4, 8.0, 12.7, 3.0, 292.0], [4.4, 8.0, 12.7, 3.0, 292.0], [6.0, 12.0, 15.5, 3.0, 356.0], [3.0, 6.0, 8.3, 3.0, 191.0], [3.0, 6.0, 9.3, 3.0, 214.0], [3.0, 6.0, 9.2, 3.0, 212.0], [4.4, 8.0, 12.7, 3.0, 292.0], [4.4, 8.0, 12.7, 3.0, 292.0], [4.4, 8.0, 14.7, 3.0, 338.0], [4.4, 8.0, 13.8, 3.0, 317.0], [4.4, 8.0, 14.7, 3.0, 338.0], [4.4, 8.0, 13.8, 3.0, 317.0], [4.4, 8.0, 14.7, 3.0, 338.0], [4.4, 8.0, 13.8, 3.0, 317.0], [4.4, 8.0, 14.7, 3.0, 338.0], [4.4, 8.0, 13.8, 3.0, 317.0], [2.0, 4.0, 9.1, 3.0, 209.0], [3.0, 6.0, 11.3, 3.0, 260.0], [2.0, 4.0, 10.0, 3.0, 230.0], [3.0, 6.0, 11.0, 3.0, 253.0], [3.0, 6.0, 11.1, 3.0, 255.0], [4.4, 8.0, 13.9, 3.0, 320.0], [4.4, 8.0, 16.1, 3.0, 370.0], [3.0, 6.0, 11.9, 3.0, 274.0], [4.4, 8.0, 14.1, 3.0, 324.0], [2.0, 4.0, 9.1, 3.0, 209.0], [2.0, 4.0, 8.7, 3.0, 200.0], [3.0, 6.0, 12.1, 3.0, 278.0], [3.0, 6.0, 11.0, 3.0, 253.0], [3.0, 6.0, 12.1, 3.0, 278.0], [3.6, 6.0, 12.3, 2.0, 283.0], [3.6, 6.0, 12.6, 2.0, 290.0], [1.4, 4.0, 8.5, 2.0, 196.0], [1.4, 4.0, 9.2, 2.0, 212.0], [3.6, 6.0, 11.5, 2.0, 264.0], [3.6, 6.0, 15.6, 1.0, 250.0], [3.6, 6.0, 11.5, 2.0, 264.0], [3.6, 6.0, 16.5, 1.0, 264.0], [2.4, 4.0, 8.2, 2.0, 189.0], [2.0, 4.0, 9.9, 3.0, 228.0], [2.0, 4.0, 9.8, 3.0, 225.0], [2.0, 4.0, 10.7, 3.0, 246.0], [2.4, 4.0, 8.2, 2.0, 189.0], [2.0, 4.0, 9.9, 3.0, 228.0], [2.0, 4.0, 9.8, 3.0, 225.0], [2.4, 4.0, 9.5, 2.0, 218.0], [2.0, 4.0, 9.6, 3.0, 221.0], [2.0, 4.0, 10.2, 3.0, 235.0], [2.5, 4.0, 9.0, 2.0, 207.0], [3.6, 6.0, 10.9, 2.0, 251.0], [2.0, 4.0, 10.1, 3.0, 232.0], [3.6, 6.0, 11.3, 2.0, 260.0], [3.6, 6.0, 11.2, 2.0, 258.0], [3.6, 6.0, 11.4, 2.0, 262.0], [2.0, 4.0, 10.1, 3.0, 232.0], [3.6, 6.0, 10.8, 2.0, 248.0], [2.0, 4.0, 10.8, 3.0, 248.0], [3.6, 6.0, 11.3, 2.0, 260.0], [3.6, 6.0, 12.8, 3.0, 294.0], [3.0, 6.0, 11.0, 2.0, 253.0], [3.6, 6.0, 11.3, 2.0, 260.0], [3.0, 6.0, 11.1, 2.0, 255.0], [3.6, 6.0, 11.4, 2.0, 262.0], [6.2, 8.0, 16.6, 3.0, 382.0], [6.2, 8.0, 14.8, 3.0, 340.0], [6.2, 8.0, 16.6, 3.0, 382.0], [6.2, 8.0, 14.8, 3.0, 340.0], [6.2, 8.0, 16.6, 3.0, 382.0], [6.2, 8.0, 14.8, 3.0, 340.0], [6.2, 8.0, 14.7, 3.0, 338.0], [6.2, 8.0, 20.1, 1.0, 322.0], [6.2, 8.0, 16.4, 3.0, 377.0], [6.2, 8.0, 22.1, 1.0, 354.0], [3.6, 6.0, 12.3, 2.0, 283.0], [3.6, 6.0, 12.8, 2.0, 294.0], [3.6, 6.0, 11.4, 2.0, 262.0], [3.6, 6.0, 11.8, 2.0, 271.0], [3.6, 6.0, 12.6, 3.0, 290.0], [3.6, 6.0, 11.2, 2.0, 258.0], [3.6, 6.0, 11.7, 2.0, 269.0], [3.6, 6.0, 10.5, 2.0, 242.0], [6.2, 8.0, 12.8, 3.0, 294.0], [6.2, 8.0, 12.7, 3.0, 292.0], [6.2, 8.0, 16.6, 3.0, 382.0], [6.2, 8.0, 14.8, 3.0, 340.0], [6.2, 8.0, 12.0, 3.0, 276.0], [6.2, 8.0, 11.2, 3.0, 258.0], [1.4, 4.0, 7.8, 2.0, 179.0], [1.4, 4.0, 7.8, 2.0, 179.0], [1.8, 4.0, 8.8, 2.0, 202.0], [1.8, 4.0, 8.2, 2.0, 189.0], [2.0, 4.0, 7.1, 0.0, 192.0], [1.4, 4.0, 7.7, 2.0, 177.0], [1.4, 4.0, 7.1, 2.0, 163.0], [2.4, 4.0, 9.1, 2.0, 209.0], [3.6, 6.0, 12.0, 2.0, 276.0], [3.6, 6.0, 16.2, 1.0, 259.0], [2.4, 4.0, 10.0, 2.0, 230.0], [3.6, 6.0, 12.6, 2.0, 290.0], [3.6, 6.0, 17.0, 1.0, 272.0], [4.3, 6.0, 15.1, 2.0, 347.0], [5.3, 8.0, 15.9, 2.0, 366.0], [5.3, 8.0, 20.9, 1.0, 334.0], [5.3, 8.0, 16.5, 2.0, 380.0], [5.3, 8.0, 21.5, 1.0, 344.0], [5.3, 8.0, 16.5, 2.0, 380.0], [5.3, 8.0, 21.5, 1.0, 344.0], [5.3, 8.0, 16.5, 2.0, 380.0], [5.3, 8.0, 22.6, 1.0, 362.0], [5.3, 8.0, 16.5, 2.0, 380.0], [5.3, 8.0, 21.5, 1.0, 344.0], [5.3, 8.0, 16.5, 2.0, 380.0], [5.3, 8.0, 22.6, 1.0, 362.0], [4.8, 8.0, 18.0, 2.0, 414.0], [6.0, 8.0, 18.8, 2.0, 432.0], [6.0, 8.0, 25.7, 1.0, 411.0], [4.8, 8.0, 18.2, 2.0, 419.0], [6.0, 8.0, 18.9, 2.0, 435.0], [6.0, 8.0, 25.8, 1.0, 413.0], [2.5, 4.0, 9.6, 2.0, 221.0], [3.6, 6.0, 10.6, 2.0, 244.0], [3.6, 6.0, 14.3, 1.0, 229.0], [2.4, 4.0, 8.7, 2.0, 200.0], [2.0, 4.0, 9.9, 3.0, 228.0], [2.5, 4.0, 8.0, 2.0, 184.0], [2.4, 4.0, 10.6, 2.0, 244.0], [2.4, 4.0, 10.2, 2.0, 235.0], [4.3, 6.0, 11.8, 2.0, 271.0], [4.3, 6.0, 16.8, 1.0, 269.0], [5.3, 8.0, 12.7, 2.0, 292.0], [5.3, 8.0, 16.9, 1.0, 270.0], [6.2, 8.0, 14.1, 3.0, 324.0], [4.3, 6.0, 12.6, 2.0, 290.0], [4.3, 6.0, 17.8, 1.0, 285.0], [5.3, 8.0, 13.0, 2.0, 299.0], [5.3, 8.0, 17.3, 1.0, 277.0], [6.2, 8.0, 14.3, 3.0, 329.0], [1.4, 4.0, 8.0, 2.0, 184.0], [1.4, 4.0, 7.5, 2.0, 173.0], [1.8, 4.0, 8.3, 2.0, 191.0], [1.8, 4.0, 7.9, 2.0, 182.0], [1.4, 4.0, 8.0, 2.0, 184.0], [1.4, 4.0, 7.5, 2.0, 172.0], [1.8, 4.0, 8.3, 2.0, 191.0], [1.8, 4.0, 7.9, 2.0, 182.0], [1.4, 4.0, 8.3, 2.0, 191.0], [1.4, 4.0, 7.9, 2.0, 182.0], [1.4, 4.0, 8.3, 2.0, 191.0], [1.4, 4.0, 7.9, 2.0, 182.0], [1.2, 4.0, 6.9, 2.0, 159.0], [1.2, 4.0, 6.9, 2.0, 159.0], [5.3, 8.0, 13.8, 2.0, 317.0], [5.3, 8.0, 18.4, 1.0, 294.0], [5.3, 8.0, 13.8, 2.0, 317.0], [5.3, 8.0, 18.4, 1.0, 294.0], [5.3, 8.0, 13.8, 2.0, 317.0], [5.3, 8.0, 18.4, 1.0, 294.0], [5.3, 8.0, 13.8, 2.0, 317.0], [5.3, 8.0, 18.4, 1.0, 294.0], [3.6, 6.0, 12.3, 2.0, 283.0], [3.6, 6.0, 12.6, 2.0, 290.0], [1.4, 4.0, 8.4, 2.0, 193.0], [1.4, 4.0, 8.1, 2.0, 186.0], [1.4, 4.0, 9.0, 2.0, 207.0], [3.6, 6.0, 10.3, 2.0, 237.0], [2.4, 4.0, 10.1, 2.0, 232.0], [2.4, 4.0, 10.7, 2.0, 246.0], [3.6, 6.0, 10.5, 2.0, 242.0], [3.6, 6.0, 14.4, 1.0, 230.0], [2.4, 4.0, 9.8, 2.0, 225.0], [2.4, 4.0, 10.0, 2.0, 230.0], [3.6, 6.0, 10.5, 2.0, 242.0], [3.6, 6.0, 14.4, 1.0, 230.0], [5.7, 8.0, 12.8, 2.0, 294.0], [3.6, 6.0, 10.9, 2.0, 251.0], [5.7, 8.0, 13.4, 2.0, 308.0], [3.6, 6.0, 10.9, 2.0, 251.0], [3.6, 6.0, 14.8, 1.0, 237.0], [3.6, 6.0, 10.3, 2.0, 237.0], [3.6, 6.0, 13.9, 1.0, 222.0], [6.4, 8.0, 13.8, 3.0, 317.0], [3.6, 6.0, 12.0, 2.0, 276.0], [3.6, 6.0, 16.8, 1.0, 269.0], [2.4, 4.0, 9.8, 2.0, 225.0], [2.4, 4.0, 10.0, 2.0, 230.0], [3.6, 6.0, 10.5, 2.0, 242.0], [3.6, 6.0, 14.4, 1.0, 230.0], [3.6, 6.0, 11.2, 2.0, 258.0], [5.7, 8.0, 13.1, 2.0, 301.0], [5.7, 8.0, 12.8, 2.0, 294.0], [6.4, 8.0, 13.9, 3.0, 320.0], [6.4, 8.0, 13.8, 3.0, 317.0], [3.6, 6.0, 11.2, 2.0, 258.0], [3.6, 6.0, 10.3, 2.0, 237.0], [5.7, 8.0, 12.8, 2.0, 294.0], [3.6, 6.0, 10.9, 2.0, 251.0], [5.7, 8.0, 13.4, 2.0, 308.0], [3.6, 6.0, 10.9, 2.0, 251.0], [3.6, 6.0, 14.8, 1.0, 237.0], [3.6, 6.0, 11.2, 2.0, 258.0], [3.6, 6.0, 15.7, 1.0, 251.0], [3.6, 6.0, 10.2, 2.0, 235.0], [3.6, 6.0, 13.9, 1.0, 222.0], [6.4, 8.0, 13.8, 3.0, 317.0], [2.0, 4.0, 8.1, 2.0, 186.0], [2.4, 4.0, 8.6, 2.0, 198.0], [2.4, 4.0, 8.8, 2.0, 202.0], [2.0, 4.0, 8.6, 2.0, 198.0], [2.0, 4.0, 12.2, 1.0, 195.0], [2.4, 4.0, 9.2, 2.0, 212.0], [2.4, 4.0, 8.8, 2.0, 202.0], [1.4, 4.0, 7.3, 2.0, 168.0], [1.4, 4.0, 7.3, 2.0, 168.0], [5.7, 8.0, 14.4, 2.0, 331.0], [3.6, 6.0, 12.1, 2.0, 278.0], [3.6, 6.0, 15.6, 1.0, 250.0], [3.6, 6.0, 11.8, 2.0, 271.0], [3.6, 6.0, 16.5, 1.0, 264.0], [2.4, 4.0, 11.1, 2.0, 255.0], [3.6, 6.0, 12.4, 2.0, 285.0], [3.6, 6.0, 12.0, 2.0, 276.0], [3.6, 6.0, 16.2, 1.0, 259.0], [1.4, 4.0, 7.8, 2.0, 179.0], [1.4, 4.0, 7.8, 2.0, 179.0], [1.4, 4.0, 7.9, 2.0, 182.0], [1.4, 4.0, 7.2, 2.0, 166.0], [1.4, 4.0, 7.8, 2.0, 179.0], [1.4, 4.0, 7.9, 2.0, 182.0], [1.4, 4.0, 6.8, 2.0, 156.0], [1.4, 4.0, 7.8, 2.0, 179.0], [1.4, 4.0, 8.7, 2.0, 200.0], [1.4, 4.0, 8.4, 2.0, 193.0], [2.0, 4.0, 6.0, 2.0, 138.0], [4.6, 8.0, 16.2, 2.0, 373.0], [4.6, 8.0, 21.9, 1.0, 350.0], [5.4, 8.0, 17.2, 2.0, 396.0], [5.4, 8.0, 22.5, 1.0, 360.0], [4.6, 8.0, 16.8, 2.0, 386.0], [4.6, 8.0, 23.0, 1.0, 368.0], [6.8, 10.0, 21.2, 2.0, 488.0], [5.4, 8.0, 18.3, 2.0, 421.0], [5.4, 8.0, 23.9, 1.0, 382.0], [2.0, 4.0, 9.8, 2.0, 225.0], [3.5, 6.0, 10.8, 2.0, 248.0], [3.5, 6.0, 11.5, 2.0, 264.0], [3.7, 6.0, 12.2, 2.0, 281.0], [1.6, 4.0, 9.1, 2.0, 209.0], [2.0, 4.0, 9.6, 2.0, 221.0], [2.5, 4.0, 9.4, 2.0, 216.0], [1.6, 4.0, 9.3, 2.0, 214.0], [2.0, 4.0, 10.0, 2.0, 230.0], [5.4, 8.0, 16.0, 2.0, 368.0], [5.4, 8.0, 21.6, 1.0, 346.0], [2.0, 4.0, 10.2, 2.0, 235.0], [3.5, 6.0, 13.0, 2.0, 299.0], [3.5, 6.0, 11.9, 2.0, 274.0], [3.5, 6.0, 15.9, 1.0, 254.0], [3.5, 6.0, 12.5, 2.0, 288.0], [3.5, 6.0, 16.7, 1.0, 267.0], [3.5, 6.0, 12.7, 2.0, 292.0], [3.5, 6.0, 12.8, 2.0, 294.0], [6.2, 8.0, 15.9, 2.0, 366.0], [3.5, 6.0, 13.8, 2.0, 317.0], [3.5, 6.0, 13.4, 2.0, 308.0], [6.2, 8.0, 17.5, 2.0, 402.0], [3.7, 6.0, 12.3, 2.0, 283.0], [3.7, 6.0, 16.5, 1.0, 264.0], [3.7, 6.0, 12.3, 2.0, 283.0], [3.7, 6.0, 16.5, 1.0, 264.0], [5.0, 8.0, 14.6, 2.0, 336.0], [5.0, 8.0, 19.7, 1.0, 315.0], [5.0, 8.0, 14.6, 2.0, 336.0], [5.0, 8.0, 19.7, 1.0, 315.0], [3.7, 6.0, 13.4, 2.0, 308.0], [3.7, 6.0, 18.0, 1.0, 288.0], [3.7, 6.0, 13.4, 2.0, 308.0], [3.7, 6.0, 18.0, 1.0, 288.0], [5.0, 8.0, 14.9, 2.0, 343.0], [5.0, 8.0, 20.0, 1.0, 320.0], [5.0, 8.0, 14.8, 2.0, 340.0], [5.0, 8.0, 19.9, 1.0, 318.0], [6.2, 8.0, 18.0, 2.0, 414.0], [1.6, 4.0, 7.6, 2.0, 175.0], [1.6, 4.0, 7.6, 2.0, 175.0], [1.0, 4.0, 6.6, 2.0, 152.0], [1.6, 4.0, 7.0, 2.0, 161.0], [1.6, 4.0, 8.0, 2.0, 184.0], [3.5, 6.0, 11.5, 2.0, 264.0], [3.5, 6.0, 12.1, 2.0, 278.0], [3.5, 6.0, 12.8, 2.0, 294.0], [2.0, 4.0, 8.9, 2.0, 205.0], [2.0, 4.0, 7.7, 2.0, 177.0], [2.0, 4.0, 10.3, 1.0, 165.0], [2.0, 4.0, 7.8, 2.0, 179.0], [2.0, 4.0, 10.3, 1.0, 165.0], [2.0, 4.0, 8.0, 2.0, 184.0], [2.0, 4.0, 10.6, 1.0, 170.0], [2.0, 4.0, 7.2, 2.0, 166.0], [2.0, 4.0, 10.1, 1.0, 162.0], [1.5, 4.0, 8.5, 2.0, 196.0], [1.6, 4.0, 8.1, 2.0, 186.0], [2.0, 4.0, 9.0, 2.0, 207.0], [2.5, 4.0, 8.9, 2.0, 205.0], [1.5, 4.0, 8.1, 2.0, 186.0], [2.0, 4.0, 9.4, 2.0, 216.0], [2.0, 4.0, 5.5, 2.0, 126.0], [3.7, 6.0, 10.2, 2.0, 235.0], [3.7, 6.0, 10.6, 2.0, 244.0], [5.0, 8.0, 11.5, 2.0, 264.0], [5.0, 8.0, 12.7, 2.0, 292.0], [5.8, 8.0, 13.2, 3.0, 304.0], [3.7, 6.0, 10.6, 2.0, 244.0], [2.0, 4.0, 9.1, 2.0, 209.0], [3.5, 6.0, 11.8, 2.0, 271.0], [3.5, 6.0, 10.3, 2.0, 237.0], [3.5, 6.0, 14.3, 1.0, 229.0], [3.5, 6.0, 11.2, 2.0, 258.0], [3.5, 6.0, 15.7, 1.0, 251.0], [1.6, 4.0, 9.5, 2.0, 218.0], [2.5, 4.0, 9.9, 2.0, 228.0], [1.6, 4.0, 10.1, 2.0, 232.0], [2.5, 4.0, 10.4, 2.0, 239.0], [3.6, 6.0, 12.3, 2.0, 283.0], [3.6, 6.0, 12.9, 2.0, 297.0], [4.3, 6.0, 15.1, 2.0, 347.0], [5.3, 8.0, 15.9, 2.0, 366.0], [5.3, 8.0, 20.9, 1.0, 334.0], [5.3, 8.0, 16.5, 2.0, 380.0], [5.3, 8.0, 21.5, 1.0, 344.0], [5.3, 8.0, 16.5, 2.0, 380.0], [5.3, 8.0, 21.5, 1.0, 344.0], [5.3, 8.0, 16.5, 2.0, 380.0], [5.3, 8.0, 22.6, 1.0, 362.0], [5.3, 8.0, 16.5, 2.0, 380.0], [5.3, 8.0, 21.5, 1.0, 344.0], [5.3, 8.0, 16.5, 2.0, 380.0], [5.3, 8.0, 22.6, 1.0, 362.0], [4.8, 8.0, 18.0, 2.0, 414.0], [6.0, 8.0, 18.8, 2.0, 432.0], [6.0, 8.0, 25.7, 1.0, 411.0], [4.8, 8.0, 18.2, 2.0, 419.0], [6.0, 8.0, 18.9, 2.0, 435.0], [6.0, 8.0, 25.8, 1.0, 413.0], [4.3, 6.0, 11.8, 2.0, 271.0], [4.3, 6.0, 16.8, 1.0, 269.0], [5.3, 8.0, 12.7, 2.0, 292.0], [5.3, 8.0, 16.9, 1.0, 270.0], [6.2, 8.0, 14.1, 3.0, 324.0], [4.3, 6.0, 12.6, 2.0, 290.0], [4.3, 6.0, 17.8, 1.0, 285.0], [5.3, 8.0, 13.0, 2.0, 299.0], [5.3, 8.0, 17.3, 1.0, 277.0], [6.2, 8.0, 14.3, 3.0, 329.0], [2.4, 4.0, 9.1, 2.0, 209.0], [3.6, 6.0, 12.0, 2.0, 276.0], [3.6, 6.0, 16.2, 1.0, 259.0], [2.4, 4.0, 10.0, 2.0, 230.0], [3.6, 6.0, 12.6, 2.0, 290.0], [3.6, 6.0, 17.0, 1.0, 272.0], [5.3, 8.0, 13.8, 2.0, 317.0], [5.3, 8.0, 18.4, 1.0, 294.0], [5.3, 8.0, 13.8, 2.0, 317.0], [5.3, 8.0, 18.4, 1.0, 294.0], [6.2, 8.0, 14.7, 3.0, 338.0], [6.2, 8.0, 20.1, 1.0, 322.0], [6.2, 8.0, 16.4, 3.0, 377.0], [6.2, 8.0, 22.1, 1.0, 354.0], [5.3, 8.0, 13.8, 2.0, 317.0], [5.3, 8.0, 18.4, 1.0, 294.0], [5.3, 8.0, 13.8, 2.0, 317.0], [5.3, 8.0, 18.4, 1.0, 294.0], [2.4, 4.0, 7.9, 2.0, 182.0], [2.4, 4.0, 8.1, 2.0, 186.0], [2.4, 4.0, 8.7, 2.0, 200.0], [3.5, 6.0, 9.1, 2.0, 209.0], [3.5, 6.0, 9.6, 2.0, 221.0], [3.5, 6.0, 10.9, 2.0, 251.0], [2.0, 4.0, 4.8, 2.0, 110.0], [1.8, 4.0, 7.0, 2.0, 161.0], [1.8, 4.0, 7.2, 2.0, 166.0], [1.8, 4.0, 7.6, 2.0, 175.0], [3.5, 6.0, 10.7, 2.0, 246.0], [2.4, 4.0, 9.1, 2.0, 209.0], [2.4, 4.0, 9.4, 2.0, 216.0], [1.5, 4.0, 6.3, 2.0, 145.0], [1.5, 4.0, 6.9, 2.0, 159.0], [1.5, 4.0, 7.5, 2.0, 172.0], [1.5, 4.0, 7.7, 2.0, 177.0], [3.5, 6.0, 10.6, 2.0, 244.0], [3.5, 6.0, 11.5, 2.0, 265.0], [3.5, 6.0, 12.0, 2.0, 276.0], [3.5, 6.0, 13.4, 2.0, 308.0], [1.6, 4.0, 7.7, 2.0, 177.0], [1.6, 4.0, 7.7, 2.0, 177.0], [2.0, 4.0, 8.6, 2.0, 198.0], [2.0, 4.0, 8.5, 2.0, 196.0], [5.0, 8.0, 13.2, 3.0, 304.0], [3.8, 6.0, 11.1, 2.0, 255.0], [3.3, 6.0, 11.2, 2.0, 258.0], [3.3, 6.0, 11.6, 2.0, 267.0], [2.4, 4.0, 10.3, 2.0, 237.0], [2.0, 4.0, 11.5, 2.0, 264.0], [2.4, 4.0, 11.1, 2.0, 255.0], [2.0, 4.0, 9.6, 2.0, 221.0], [2.4, 4.0, 8.5, 2.0, 196.0], [2.4, 4.0, 6.2, 2.0, 143.0], [2.4, 4.0, 6.3, 2.0, 145.0], [2.0, 4.0, 9.3, 2.0, 214.0], [2.0, 4.0, 10.1, 2.0, 232.0], [2.4, 4.0, 10.0, 2.0, 230.0], [2.0, 4.0, 10.5, 2.0, 242.0], [2.4, 4.0, 10.6, 2.0, 244.0], [1.6, 4.0, 7.7, 2.0, 177.0], [1.6, 4.0, 8.0, 2.0, 184.0], [1.6, 4.0, 8.8, 2.0, 202.0], [1.6, 4.0, 8.5, 2.0, 196.0], [3.7, 6.0, 10.2, 3.0, 235.0], [3.7, 6.0, 10.8, 3.0, 248.0], [3.5, 6.0, 7.5, 3.0, 172.0], [3.5, 6.0, 8.2, 3.0, 189.0], [3.7, 6.0, 11.5, 3.0, 265.0], [3.7, 6.0, 11.7, 3.0, 269.0], [3.7, 6.0, 12.3, 3.0, 283.0], [3.7, 6.0, 11.1, 3.0, 255.0], [3.7, 6.0, 11.6, 3.0, 267.0], [3.7, 6.0, 11.0, 3.0, 253.0], [5.6, 8.0, 12.3, 3.0, 283.0], [3.7, 6.0, 11.6, 3.0, 267.0], [5.6, 8.0, 12.8, 3.0, 294.0], [3.5, 6.0, 7.6, 3.0, 175.0], [3.7, 6.0, 11.8, 3.0, 271.0], [3.5, 6.0, 10.6, 3.0, 244.0], [3.5, 6.0, 11.0, 3.0, 253.0], [2.5, 4.0, 8.5, 2.0, 196.0], [3.7, 6.0, 12.8, 3.0, 294.0], [5.0, 8.0, 14.5, 3.0, 334.0], [5.6, 8.0, 15.0, 3.0, 345.0], [3.0, 6.0, 10.3, 3.0, 237.0], [3.0, 6.0, 10.6, 3.0, 244.0], [5.0, 8.0, 12.8, 3.0, 294.0], [2.0, 4.0, 10.5, 3.0, 242.0], [3.0, 6.0, 12.2, 3.0, 281.0], [5.0, 8.0, 13.3, 3.0, 306.0], [5.0, 8.0, 18.1, 1.0, 290.0], [5.0, 8.0, 13.3, 3.0, 306.0], [3.0, 6.0, 12.4, 3.0, 285.0], [5.0, 8.0, 13.3, 3.0, 306.0], [5.0, 8.0, 17.5, 1.0, 280.0], [3.0, 6.0, 12.4, 3.0, 285.0], [5.0, 8.0, 13.3, 3.0, 306.0], [5.0, 8.0, 17.5, 1.0, 280.0], [5.0, 8.0, 13.3, 3.0, 306.0], [5.0, 8.0, 13.3, 3.0, 306.0], [5.0, 8.0, 13.1, 3.0, 301.0], [5.0, 8.0, 12.6, 3.0, 290.0], [5.0, 8.0, 13.7, 3.0, 315.0], [5.0, 8.0, 13.5, 3.0, 310.0], [5.0, 8.0, 13.7, 3.0, 315.0], [5.0, 8.0, 13.5, 3.0, 310.0], [2.4, 4.0, 9.5, 2.0, 218.0], [3.2, 6.0, 10.5, 2.0, 242.0], [2.4, 4.0, 10.0, 2.0, 230.0], [3.2, 6.0, 10.8, 2.0, 248.0], [2.4, 4.0, 10.1, 2.0, 232.0], [3.2, 6.0, 11.0, 2.0, 253.0], [2.4, 4.0, 10.9, 2.0, 251.0], [3.2, 6.0, 11.6, 2.0, 267.0], [2.0, 4.0, 9.8, 2.0, 225.0], [2.0, 4.0, 9.1, 2.0, 209.0], [2.4, 4.0, 9.8, 2.0, 225.0], [2.4, 4.0, 9.4, 2.0, 216.0], [2.4, 4.0, 10.2, 2.0, 235.0], [2.4, 4.0, 9.4, 2.0, 216.0], [2.4, 4.0, 11.1, 2.0, 255.0], [5.7, 8.0, 14.8, 2.0, 340.0], [3.0, 6.0, 9.9, 0.0, 267.0], [3.6, 6.0, 12.1, 2.0, 278.0], [3.6, 6.0, 15.6, 1.0, 250.0], [6.4, 8.0, 15.8, 3.0, 363.0], [2.0, 4.0, 9.8, 2.0, 225.0], [2.0, 4.0, 9.1, 2.0, 209.0], [2.4, 4.0, 9.8, 2.0, 225.0], [2.4, 4.0, 9.4, 2.0, 216.0], [2.4, 4.0, 10.2, 2.0, 235.0], [2.4, 4.0, 9.4, 2.0, 216.0], [2.4, 4.0, 11.1, 2.0, 255.0], [3.6, 6.0, 12.8, 2.0, 294.0], [3.6, 6.0, 12.8, 2.0, 294.0], [3.6, 6.0, 13.4, 2.0, 308.0], [3.6, 6.0, 13.4, 2.0, 308.0], [3.3, 6.0, 10.9, 2.0, 251.0], [1.8, 4.0, 8.3, 2.0, 191.0], [1.8, 4.0, 8.0, 2.0, 184.0], [2.0, 4.0, 8.4, 2.0, 193.0], [2.0, 4.0, 8.4, 2.0, 193.0], [1.6, 4.0, 9.7, 2.0, 223.0], [1.6, 4.0, 9.8, 2.0, 225.0], [2.0, 4.0, 8.4, 2.0, 193.0], [2.0, 4.0, 8.5, 2.0, 196.0], [1.6, 4.0, 9.4, 2.0, 216.0], [1.6, 4.0, 9.6, 2.0, 221.0], [2.0, 4.0, 8.4, 2.0, 193.0], [2.0, 4.0, 8.6, 2.0, 198.0], [2.0, 4.0, 9.9, 2.0, 228.0], [2.4, 4.0, 8.7, 2.0, 200.0], [1.6, 4.0, 7.6, 2.0, 175.0], [1.6, 4.0, 7.7, 2.0, 177.0], [1.6, 4.0, 7.6, 2.0, 175.0], [2.0, 4.0, 9.2, 2.0, 212.0], [2.0, 4.0, 9.3, 2.0, 214.0], [3.5, 6.0, 12.0, 2.0, 276.0], [2.4, 4.0, 10.3, 2.0, 237.0], [3.3, 6.0, 11.4, 2.0, 262.0], [2.4, 4.0, 11.0, 2.0, 253.0], [3.3, 6.0, 11.8, 2.0, 271.0], [1.6, 4.0, 8.9, 2.0, 205.0], [1.6, 4.0, 9.0, 2.0, 207.0], [2.0, 4.0, 9.1, 2.0, 209.0], [2.0, 4.0, 8.8, 2.0, 202.0], [2.4, 4.0, 10.0, 2.0, 230.0], [2.4, 4.0, 11.3, 2.0, 260.0], [2.0, 4.0, 11.4, 2.0, 262.0], [2.4, 4.0, 10.7, 2.0, 246.0], [6.5, 12.0, 18.3, 3.0, 421.0], [5.2, 10.0, 15.7, 3.0, 361.0], [5.2, 10.0, 17.4, 3.0, 400.0], [2.0, 4.0, 11.9, 3.0, 274.0], [3.0, 6.0, 14.5, 3.0, 334.0], [2.0, 4.0, 9.8, 3.0, 225.0], [2.0, 4.0, 9.8, 3.0, 225.0], [5.0, 8.0, 15.4, 3.0, 354.0], [5.0, 8.0, 15.1, 3.0, 347.0], [5.0, 8.0, 21.4, 1.0, 342.0], [3.0, 6.0, 12.4, 3.0, 285.0], [3.0, 6.0, 12.4, 3.0, 285.0], [3.0, 6.0, 17.4, 1.0, 278.0], [5.0, 8.0, 15.0, 3.0, 345.0], [5.0, 8.0, 14.7, 3.0, 338.0], [5.0, 8.0, 20.7, 1.0, 331.0], [3.0, 6.0, 12.3, 3.0, 283.0], [3.0, 6.0, 12.3, 3.0, 283.0], [3.0, 6.0, 17.3, 1.0, 277.0], [5.0, 8.0, 15.4, 3.0, 354.0], [5.0, 8.0, 15.1, 3.0, 347.0], [5.0, 8.0, 21.4, 1.0, 342.0], [1.8, 4.0, 5.6, 2.0, 129.0], [2.5, 4.0, 6.0, 2.0, 138.0], [3.5, 6.0, 9.6, 2.0, 221.0], [3.5, 6.0, 10.4, 3.0, 239.0], [3.5, 6.0, 11.0, 3.0, 253.0], [3.5, 6.0, 7.6, 3.0, 175.0], [4.6, 8.0, 13.9, 3.0, 320.0], [2.5, 6.0, 9.7, 3.0, 223.0], [2.5, 6.0, 10.4, 3.0, 239.0], [2.5, 6.0, 9.7, 3.0, 223.0], [3.5, 6.0, 10.6, 3.0, 244.0], [3.5, 6.0, 11.0, 3.0, 253.0], [3.5, 6.0, 10.6, 3.0, 244.0], [5.0, 8.0, 12.6, 3.0, 290.0], [4.6, 8.0, 12.3, 3.0, 283.0], [4.6, 8.0, 12.9, 3.0, 297.0], [4.6, 8.0, 12.9, 3.0, 297.0], [5.0, 8.0, 11.4, 3.0, 262.0], [5.7, 8.0, 16.5, 3.0, 380.0], [3.5, 6.0, 11.7, 2.0, 269.0], [3.5, 6.0, 11.1, 2.0, 255.0], [3.5, 6.0, 8.2, 3.0, 189.0], [3.5, 6.0, 11.8, 2.0, 271.0], [3.7, 6.0, 11.3, 2.0, 260.0], [3.5, 6.0, 12.8, 2.0, 294.0], [2.0, 4.0, 10.2, 2.0, 235.0], [3.7, 6.0, 12.2, 2.0, 281.0], [3.7, 6.0, 12.2, 2.0, 281.0], [2.0, 4.0, 9.0, 2.0, 207.0], [3.7, 6.0, 11.4, 2.0, 262.0], [2.0, 4.0, 6.3, 2.0, 145.0], [5.4, 8.0, 16.0, 2.0, 368.0], [5.4, 8.0, 21.6, 1.0, 346.0], [3.0, 6.0, 12.7, 3.0, 292.0], [3.0, 6.0, 12.7, 3.0, 292.0], [4.7, 8.0, 15.1, 3.0, 347.0], [4.7, 8.0, 15.3, 3.0, 352.0], [3.8, 8.0, 14.5, 3.0, 334.0], [3.0, 6.0, 13.1, 3.0, 301.0], [2.0, 4.0, 8.2, 2.0, 189.0], [2.0, 4.0, 8.0, 2.0, 184.0], [2.5, 4.0, 8.6, 2.0, 198.0], [2.0, 4.0, 8.5, 2.0, 196.0], [2.5, 4.0, 8.9, 2.0, 205.0], [3.7, 6.0, 12.3, 2.0, 283.0], [3.7, 6.0, 12.6, 2.0, 290.0], [1.5, 4.0, 7.7, 2.0, 177.0], [1.5, 4.0, 7.4, 2.0, 170.0], [2.0, 4.0, 6.9, 2.0, 159.0], [2.0, 4.0, 7.0, 2.0, 161.0], [2.5, 4.0, 7.4, 2.0, 170.0], [2.5, 4.0, 7.3, 2.0, 168.0], [2.0, 4.0, 7.0, 2.0, 161.0], [2.0, 4.0, 7.1, 2.0, 163.0], [2.0, 4.0, 7.2, 2.0, 166.0], [2.5, 4.0, 7.7, 2.0, 177.0], [2.5, 4.0, 7.3, 2.0, 168.0], [2.0, 4.0, 7.2, 2.0, 166.0], [2.5, 4.0, 9.7, 2.0, 223.0], [2.5, 4.0, 9.8, 2.0, 225.0], [2.5, 4.0, 7.6, 2.0, 175.0], [2.5, 4.0, 8.1, 2.0, 186.0], [2.5, 4.0, 7.3, 2.0, 168.0], [2.0, 4.0, 10.2, 3.0, 235.0], [2.0, 4.0, 9.6, 3.0, 221.0], [2.0, 4.0, 9.9, 3.0, 228.0], [2.0, 4.0, 8.0, 3.0, 184.0], [1.8, 4.0, 9.4, 3.0, 216.0], [1.8, 4.0, 9.4, 3.0, 216.0], [3.5, 6.0, 10.5, 3.0, 242.0], [3.5, 6.0, 14.0, 1.0, 224.0], [3.5, 6.0, 10.5, 3.0, 242.0], [3.5, 6.0, 10.4, 3.0, 239.0], [3.5, 6.0, 10.6, 3.0, 244.0], [3.5, 6.0, 10.5, 3.0, 242.0], [6.2, 8.0, 15.1, 3.0, 347.0], [6.2, 8.0, 15.3, 3.0, 352.0], [4.7, 8.0, 13.2, 3.0, 304.0], [5.5, 8.0, 13.4, 3.0, 308.0], [2.0, 4.0, 7.8, 3.0, 179.0], [2.0, 4.0, 9.2, 3.0, 212.0], [4.7, 8.0, 11.5, 3.0, 264.0], [5.5, 8.0, 13.1, 3.0, 301.0], [5.5, 8.0, 13.1, 3.0, 301.0], [2.1, 4.0, 7.2, 0.0, 194.0], [3.5, 6.0, 10.2, 3.0, 235.0], [3.5, 6.0, 10.0, 3.0, 230.0], [3.5, 6.0, 10.4, 3.0, 239.0], [3.5, 6.0, 10.5, 3.0, 242.0], [3.5, 6.0, 10.4, 3.0, 239.0], [3.5, 6.0, 10.2, 3.0, 235.0], [3.5, 6.0, 8.8, 3.0, 202.0], [4.7, 8.0, 11.6, 3.0, 267.0], [4.7, 8.0, 11.7, 3.0, 269.0], [4.7, 8.0, 11.4, 3.0, 262.0], [5.5, 8.0, 12.9, 3.0, 297.0], [5.5, 8.0, 13.5, 3.0, 310.0], [5.5, 8.0, 12.9, 3.0, 297.0], [5.5, 8.0, 13.5, 3.0, 310.0], [5.5, 8.0, 18.2, 3.0, 419.0], [5.5, 8.0, 17.7, 3.0, 407.0], [3.0, 6.0, 12.0, 0.0, 324.0], [4.7, 8.0, 15.2, 3.0, 350.0], [4.7, 8.0, 15.6, 3.0, 359.0], [5.5, 8.0, 15.8, 3.0, 363.0], [2.1, 4.0, 8.5, 0.0, 230.0], [3.5, 6.0, 11.3, 3.0, 260.0], [3.5, 6.0, 12.1, 3.0, 278.0], [3.5, 6.0, 16.0, 1.0, 256.0], [3.0, 6.0, 10.3, 0.0, 278.0], [4.7, 8.0, 14.2, 3.0, 327.0], [5.5, 8.0, 15.5, 3.0, 356.0], [4.7, 8.0, 12.1, 3.0, 278.0], [4.7, 8.0, 12.0, 3.0, 276.0], [5.5, 8.0, 13.2, 3.0, 304.0], [4.7, 8.0, 11.7, 3.0, 269.0], [5.5, 8.0, 12.7, 3.0, 292.0], [6.0, 8.0, 14.2, 3.0, 327.0], [1.8, 4.0, 8.9, 3.0, 205.0], [1.8, 4.0, 9.0, 3.0, 207.0], [3.5, 6.0, 9.8, 3.0, 225.0], [5.5, 8.0, 10.7, 3.0, 246.0], [6.2, 8.0, 16.5, 3.0, 380.0], [6.2, 8.0, 15.7, 3.0, 361.0], [6.2, 8.0, 15.7, 3.0, 361.0], [1.6, 4.0, 7.8, 3.0, 179.0], [1.6, 4.0, 7.8, 3.0, 179.0], [1.6, 4.0, 7.8, 3.0, 179.0], [1.6, 4.0, 7.8, 3.0, 179.0], [1.6, 4.0, 8.7, 3.0, 200.0], [1.6, 4.0, 7.8, 3.0, 179.0], [1.6, 4.0, 7.6, 3.0, 175.0], [1.6, 4.0, 7.3, 3.0, 168.0], [1.6, 4.0, 8.7, 3.0, 200.0], [1.6, 4.0, 7.8, 3.0, 179.0], [1.6, 4.0, 7.8, 3.0, 179.0], [1.6, 4.0, 7.8, 3.0, 179.0], [1.6, 4.0, 8.3, 3.0, 191.0], [1.6, 4.0, 8.0, 3.0, 184.0], [1.6, 4.0, 8.3, 3.0, 191.0], [1.6, 4.0, 8.0, 3.0, 184.0], [1.6, 4.0, 9.0, 3.0, 207.0], [1.6, 4.0, 8.5, 3.0, 196.0], [1.6, 4.0, 8.3, 3.0, 191.0], [1.6, 4.0, 8.0, 3.0, 184.0], [1.6, 4.0, 9.0, 3.0, 207.0], [1.6, 4.0, 8.5, 3.0, 196.0], [1.6, 4.0, 8.3, 3.0, 191.0], [1.6, 4.0, 8.0, 3.0, 184.0], [1.6, 4.0, 8.3, 3.0, 191.0], [1.6, 4.0, 8.0, 3.0, 184.0], [1.6, 4.0, 8.3, 3.0, 191.0], [1.6, 4.0, 8.0, 3.0, 184.0], [1.6, 4.0, 9.0, 3.0, 207.0], [1.6, 4.0, 8.5, 3.0, 196.0], [1.6, 4.0, 8.3, 3.0, 191.0], [1.6, 4.0, 8.0, 3.0, 184.0], [1.6, 4.0, 9.0, 3.0, 207.0], [1.6, 4.0, 8.5, 3.0, 196.0], [1.6, 4.0, 8.3, 3.0, 191.0], [1.6, 4.0, 8.0, 3.0, 184.0], [2.0, 4.0, 8.2, 2.0, 189.0], [2.0, 4.0, 8.3, 2.0, 191.0], [2.4, 4.0, 9.5, 2.0, 218.0], [2.0, 4.0, 12.5, 3.0, 288.0], [2.0, 4.0, 12.3, 3.0, 283.0], [2.0, 4.0, 11.6, 3.0, 267.0], [2.0, 4.0, 8.6, 2.0, 198.0], [2.0, 4.0, 8.6, 2.0, 198.0], [1.2, 3.0, 6.0, 2.0, 138.0], [1.2, 3.0, 6.4, 2.0, 147.0], [2.4, 4.0, 8.6, 2.0, 198.0], [2.4, 4.0, 9.1, 2.0, 209.0], [3.0, 6.0, 10.2, 3.0, 235.0], [2.0, 4.0, 8.7, 2.0, 200.0], [2.0, 4.0, 8.8, 2.0, 202.0], [2.0, 4.0, 9.0, 2.0, 207.0], [3.7, 6.0, 11.0, 3.0, 253.0], [3.7, 6.0, 11.5, 3.0, 264.0], [3.7, 6.0, 11.4, 3.0, 262.0], [3.7, 6.0, 11.7, 3.0, 269.0], [2.5, 4.0, 7.6, 2.0, 175.0], [3.5, 6.0, 9.3, 2.0, 214.0], [5.6, 8.0, 16.5, 2.0, 380.0], [2.5, 4.0, 12.3, 2.0, 283.0], [2.5, 4.0, 11.3, 2.0, 260.0], [4.0, 6.0, 12.7, 2.0, 292.0], [4.0, 6.0, 13.7, 2.0, 315.0], [4.0, 6.0, 13.1, 2.0, 301.0], [3.8, 6.0, 12.9, 3.0, 297.0], [1.6, 4.0, 8.1, 3.0, 186.0], [1.6, 4.0, 8.6, 3.0, 198.0], [1.6, 4.0, 8.7, 3.0, 200.0], [3.5, 6.0, 10.9, 3.0, 251.0], [3.5, 6.0, 11.8, 2.0, 271.0], [2.0, 4.0, 9.3, 2.0, 214.0], [3.5, 6.0, 10.6, 2.0, 244.0], [3.5, 6.0, 11.0, 2.0, 253.0], [2.5, 4.0, 8.8, 2.0, 202.0], [3.5, 6.0, 11.1, 2.0, 255.0], [2.5, 4.0, 8.3, 2.0, 191.0], [2.5, 4.0, 8.6, 2.0, 198.0], [1.8, 4.0, 7.0, 2.0, 161.0], [1.8, 4.0, 7.8, 2.0, 179.0], [5.6, 8.0, 15.6, 2.0, 359.0], [5.6, 8.0, 17.3, 2.0, 398.0], [1.6, 4.0, 6.6, 2.0, 152.0], [1.6, 4.0, 7.7, 2.0, 177.0], [4.0, 6.0, 14.2, 2.0, 327.0], [4.0, 6.0, 13.7, 2.0, 315.0], [3.4, 6.0, 10.1, 3.0, 232.0], [3.4, 6.0, 10.7, 3.0, 246.0], [3.4, 6.0, 10.3, 3.0, 237.0], [3.4, 6.0, 10.7, 3.0, 246.0], [3.4, 6.0, 10.5, 3.0, 242.0], [3.4, 6.0, 11.0, 3.0, 253.0], [3.8, 6.0, 10.8, 3.0, 248.0], [3.8, 6.0, 11.0, 3.0, 253.0], [3.8, 6.0, 11.0, 3.0, 253.0], [3.8, 6.0, 11.2, 3.0, 258.0], [3.4, 6.0, 10.1, 3.0, 232.0], [3.4, 6.0, 10.7, 3.0, 246.0], [3.8, 6.0, 10.6, 3.0, 244.0], [3.8, 6.0, 10.8, 3.0, 248.0], [3.8, 6.0, 10.7, 3.0, 246.0], [3.8, 6.0, 10.9, 3.0, 251.0], [3.8, 6.0, 14.0, 3.0, 322.0], [3.8, 6.0, 11.9, 3.0, 274.0], [3.8, 6.0, 11.9, 3.0, 274.0], [3.8, 6.0, 11.9, 3.0, 274.0], [3.8, 6.0, 11.9, 3.0, 274.0], [2.7, 6.0, 9.2, 3.0, 212.0], [2.7, 6.0, 9.9, 3.0, 228.0], [3.4, 6.0, 9.8, 3.0, 225.0], [3.4, 6.0, 10.4, 3.0, 239.0], [3.6, 6.0, 12.0, 3.0, 276.0], [3.6, 6.0, 13.6, 3.0, 313.0], [3.0, 6.0, 10.4, 0.0, 281.0], [4.8, 8.0, 13.9, 3.0, 320.0], [4.8, 8.0, 13.0, 3.0, 299.0], [3.0, 6.0, 10.9, 3.0, 251.0], [4.8, 8.0, 13.7, 3.0, 315.0], [2.7, 6.0, 9.2, 3.0, 212.0], [2.7, 6.0, 9.9, 3.0, 228.0], [3.4, 6.0, 9.8, 3.0, 225.0], [3.4, 6.0, 10.4, 3.0, 239.0], [3.6, 6.0, 10.9, 3.0, 251.0], [3.6, 6.0, 11.1, 3.0, 255.0], [3.0, 6.0, 11.3, 3.0, 260.0], [3.0, 6.0, 11.5, 3.0, 264.0], [4.8, 8.0, 12.7, 3.0, 292.0], [3.0, 6.0, 11.3, 3.0, 260.0], [4.8, 8.0, 12.8, 3.0, 294.0], [4.8, 8.0, 12.9, 3.0, 297.0], [5.7, 8.0, 14.8, 2.0, 340.0], [5.7, 8.0, 13.6, 2.0, 313.0], [5.7, 8.0, 15.4, 2.0, 354.0], [5.7, 8.0, 14.1, 2.0, 324.0], [3.0, 6.0, 10.6, 0.0, 286.0], [3.6, 6.0, 12.6, 2.0, 290.0], [3.6, 6.0, 17.8, 1.0, 285.0], [3.0, 6.0, 10.2, 0.0, 275.0], [3.6, 6.0, 11.9, 2.0, 274.0], [3.6, 6.0, 16.8, 1.0, 269.0], [3.6, 6.0, 11.3, 2.0, 260.0], [3.6, 6.0, 11.4, 2.0, 262.0], [3.6, 6.0, 15.9, 1.0, 254.0], [6.6, 12.0, 16.0, 3.0, 368.0], [6.6, 12.0, 16.0, 3.0, 368.0], [6.7, 12.0, 17.1, 3.0, 393.0], [6.7, 12.0, 17.1, 3.0, 393.0], [6.7, 12.0, 17.1, 3.0, 393.0], [6.7, 12.0, 17.1, 3.0, 393.0], [6.6, 12.0, 15.6, 3.0, 359.0], [2.0, 4.0, 8.4, 3.0, 193.0], [2.0, 4.0, 9.5, 3.0, 218.0], [1.3, 4.0, 6.2, 2.0, 143.0], [2.5, 4.0, 9.0, 2.0, 207.0], [2.5, 4.0, 9.0, 2.0, 207.0], [2.4, 4.0, 9.9, 2.0, 228.0], [2.4, 4.0, 9.9, 2.0, 228.0], [1.8, 4.0, 8.0, 2.0, 184.0], [1.8, 4.0, 7.9, 2.0, 182.0], [1.0, 3.0, 6.4, 3.0, 147.0], [1.0, 3.0, 6.4, 3.0, 147.0], [8.4, 10.0, 16.9, 3.0, 389.0], [8.4, 10.0, 16.9, 3.0, 389.0], [2.0, 4.0, 8.5, 3.0, 196.0], [2.0, 4.0, 9.6, 3.0, 221.0], [2.0, 4.0, 9.5, 3.0, 218.0], [2.5, 4.0, 8.6, 2.0, 198.0], [2.5, 4.0, 9.7, 2.0, 223.0], [2.0, 4.0, 7.8, 2.0, 179.0], [2.0, 4.0, 8.5, 2.0, 196.0], [2.5, 4.0, 11.2, 3.0, 258.0], [2.5, 4.0, 12.5, 3.0, 288.0], [2.0, 4.0, 7.8, 2.0, 179.0], [2.0, 4.0, 8.5, 2.0, 196.0], [2.5, 4.0, 11.2, 3.0, 258.0], [2.5, 4.0, 12.5, 3.0, 288.0], [2.5, 4.0, 8.6, 2.0, 198.0], [2.5, 4.0, 9.9, 2.0, 228.0], [3.6, 6.0, 11.6, 2.0, 267.0], [2.5, 4.0, 9.0, 2.0, 207.0], [2.5, 4.0, 9.8, 2.0, 225.0], [3.6, 6.0, 11.7, 2.0, 269.0], [3.6, 6.0, 13.1, 2.0, 301.0], [2.0, 4.0, 8.5, 2.0, 196.0], [2.0, 4.0, 9.2, 2.0, 212.0], [2.0, 4.0, 7.7, 2.0, 177.0], [4.0, 6.0, 12.9, 2.0, 297.0], [4.0, 6.0, 12.9, 2.0, 297.0], [3.5, 6.0, 9.6, 2.0, 221.0], [2.5, 4.0, 8.2, 2.0, 189.0], [3.5, 6.0, 9.6, 2.0, 221.0], [2.5, 4.0, 5.7, 2.0, 131.0], [2.5, 4.0, 6.0, 2.0, 138.0], [1.8, 4.0, 7.7, 2.0, 177.0], [1.8, 4.0, 7.3, 2.0, 168.0], [1.8, 4.0, 7.1, 2.0, 163.0], [1.8, 4.0, 7.4, 2.0, 170.0], [1.8, 4.0, 6.8, 2.0, 156.0], [1.8, 4.0, 6.9, 2.0, 159.0], [1.8, 4.0, 8.5, 2.0, 196.0], [1.8, 4.0, 8.2, 2.0, 189.0], [4.0, 6.0, 12.9, 2.0, 297.0], [4.0, 6.0, 13.9, 2.0, 320.0], [2.7, 4.0, 10.3, 2.0, 237.0], [3.5, 6.0, 11.2, 2.0, 258.0], [3.5, 6.0, 11.5, 2.0, 264.0], [3.5, 6.0, 8.3, 2.0, 191.0], [3.5, 6.0, 8.2, 2.0, 189.0], [1.8, 4.0, 4.8, 2.0, 110.0], [1.5, 4.0, 4.7, 2.0, 108.0], [1.8, 4.0, 5.5, 2.0, 126.0], [2.5, 4.0, 8.9, 2.0, 205.0], [2.5, 4.0, 9.4, 2.0, 216.0], [2.5, 4.0, 9.5, 2.0, 218.0], [5.7, 8.0, 16.7, 2.0, 384.0], [3.5, 6.0, 11.3, 2.0, 260.0], [3.5, 6.0, 12.4, 2.0, 285.0], [2.7, 4.0, 10.9, 2.0, 251.0], [2.7, 4.0, 10.2, 2.0, 235.0], [4.0, 6.0, 13.1, 2.0, 301.0], [2.7, 4.0, 11.9, 2.0, 274.0], [2.7, 4.0, 11.8, 2.0, 271.0], [4.0, 6.0, 13.3, 2.0, 306.0], [4.0, 6.0, 14.0, 2.0, 322.0], [4.0, 6.0, 13.5, 2.0, 310.0], [4.6, 8.0, 14.3, 2.0, 329.0], [5.7, 8.0, 15.5, 2.0, 356.0], [4.6, 8.0, 15.1, 2.0, 347.0], [5.7, 8.0, 16.2, 2.0, 373.0], [2.7, 4.0, 10.0, 2.0, 230.0], [3.5, 6.0, 11.0, 2.0, 253.0], [2.7, 4.0, 10.2, 2.0, 235.0], [3.5, 6.0, 11.3, 2.0, 260.0], [1.5, 4.0, 7.3, 2.0, 168.0], [1.5, 4.0, 7.1, 2.0, 163.0], [1.8, 4.0, 8.5, 2.0, 196.0], [1.8, 4.0, 8.7, 2.0, 200.0], [2.0, 4.0, 9.1, 3.0, 209.0], [2.0, 4.0, 9.4, 3.0, 216.0], [2.5, 5.0, 9.8, 2.0, 225.0], [2.5, 5.0, 9.6, 2.0, 221.0], [1.8, 4.0, 8.7, 2.0, 200.0], [2.0, 4.0, 9.3, 3.0, 214.0], [2.0, 4.0, 9.4, 3.0, 216.0], [2.5, 5.0, 10.1, 2.0, 232.0], [2.0, 4.0, 7.3, 0.0, 197.0], [2.0, 4.0, 7.3, 0.0, 197.0], [2.0, 4.0, 9.7, 3.0, 223.0], [2.0, 4.0, 9.8, 3.0, 225.0], [3.6, 6.0, 12.3, 3.0, 283.0], [2.0, 4.0, 9.6, 3.0, 221.0], [2.5, 5.0, 9.5, 2.0, 218.0], [2.5, 5.0, 9.4, 2.0, 216.0], [2.0, 4.0, 7.2, 0.0, 194.0], [2.0, 4.0, 6.9, 0.0, 186.0], [1.8, 4.0, 8.2, 2.0, 189.0], [1.8, 4.0, 8.2, 2.0, 189.0], [2.0, 4.0, 9.4, 2.0, 216.0], [2.0, 4.0, 9.0, 2.0, 207.0], [2.0, 4.0, 9.0, 3.0, 207.0], [2.0, 4.0, 9.2, 3.0, 212.0], [2.0, 4.0, 6.9, 0.0, 186.0], [2.0, 4.0, 6.9, 0.0, 186.0], [1.4, 4.0, 5.4, 3.0, 124.0], [1.8, 4.0, 8.6, 2.0, 198.0], [1.8, 4.0, 8.6, 2.0, 198.0], [2.5, 5.0, 9.7, 2.0, 223.0], [2.5, 5.0, 9.8, 2.0, 225.0], [3.6, 6.0, 10.8, 3.0, 248.0], [2.0, 4.0, 7.1, 0.0, 192.0], [2.0, 4.0, 6.8, 0.0, 184.0], [3.6, 6.0, 12.1, 2.0, 278.0], [2.0, 4.0, 10.7, 3.0, 246.0], [2.0, 4.0, 11.6, 3.0, 267.0], [2.0, 4.0, 10.7, 3.0, 246.0], [3.6, 6.0, 12.2, 3.0, 281.0], [3.0, 6.0, 10.4, 0.0, 281.0], [2.5, 5.0, 9.7, 2.0, 223.0], [2.5, 5.0, 10.1, 2.0, 232.0], [3.0, 6.0, 11.5, 2.0, 264.0], [3.2, 6.0, 10.2, 2.0, 235.0], [3.0, 6.0, 11.5, 2.0, 264.0], [3.2, 6.0, 11.2, 2.0, 258.0], [3.0, 6.0, 11.8, 2.0, 271.0], [3.2, 6.0, 11.5, 2.0, 264.0], [3.0, 6.0, 11.8, 2.0, 271.0], [3.2, 6.0, 11.3, 2.0, 260.0], [3.2, 6.0, 12.8, 2.0, 294.0]]
+;
+// DS format: [engineSize, cylinders, fuelCombined, fuelTypeEnc, co2]
+// FuelType LabelEncoder: D=0, E=1, X=2, Z=3
+
+// ── SCALER ──
+const MN=[0,0,0,0],SD=[0,0,0,0];
+(()=>{const n=DS.length;for(let i=0;i<4;i++){MN[i]=DS.reduce((s,r)=>s+r[i],0)/n;SD[i]=Math.sqrt(DS.reduce((s,r)=>s+(r[i]-MN[i])**2,0)/n);}})();
+function sc(r){return r.map((v,i)=>(v-MN[i])/SD[i]);}
+function d2(a,b){return a.reduce((s,v,i)=>s+(v-b[i])**2,0);}
+
+const TRAIN=DS.slice(0,853),TEST=DS.slice(853);
+
+function knn(eng,cyl,fc,ft,k){
+  const q=sc([eng,cyl,fc,ft]);
+  const arr=TRAIN.map(r=>({d:d2(q,sc(r.slice(0,4))),co2:r[4]}));
+  arr.sort((a,b)=>a.d-b.d);
+  const nb=arr.slice(0,k);
+  return{pred:Math.round(nb.reduce((s,n)=>s+n.co2,0)/k),nb};
+}
+
+function evalM(k){
+  const my=TEST.reduce((s,r)=>s+r[4],0)/TEST.length;
+  let mae=0,mse=0,ss=0,st=0;
+  const ps=TEST.map(r=>{
+    const q=sc(r.slice(0,4));
+    const a=TRAIN.map(t=>({d:d2(q,sc(t.slice(0,4))),co2:t[4]}));
+    a.sort((a,b)=>a.d-b.d);
+    return a.slice(0,k).reduce((s,n)=>s+n.co2,0)/k;
+  });
+  ps.forEach((p,i)=>{const e=p-TEST[i][4];mae+=Math.abs(e);mse+=e*e;ss+=e*e;st+=(TEST[i][4]-my)**2;});
+  return{mae:(mae/TEST.length).toFixed(2),rmse:Math.sqrt(mse/TEST.length).toFixed(2),r2:(1-ss/st).toFixed(4),actual:TEST.map(r=>r[4]),pred:ps.map(p=>Math.round(p))};
+}
+
+// ── UI STATE ──
+let FE=2,FL='Regular (X)',K=5,barC=null,scC=null;
+
+function setFuel(enc,code){
+  FE=enc;FL={0:'Diesel (D)',1:'Ethanol (E)',2:'Regular (X)',3:'Premium (Z)'}[enc];
+  ['X','Z','D','E'].forEach(f=>{
+    const b=document.getElementById('fb-'+f);
+    b.classList.remove('on','on-pink');
+  });
+  const b=document.getElementById('fb-'+code);
+  b.classList.add(enc===2||enc===1?'on':'on-pink');
+}
+
+function stab(n){
+  ['metrics','scatter'].forEach(t=>{
+    document.getElementById('t-'+t).classList.toggle('on',t===n);
+    document.getElementById('p-'+t).classList.toggle('on',t===n);
+  });
+}
+
+function runPredict(){
+  const eng=parseFloat(document.getElementById('s-eng').value);
+  const cyl=parseInt(document.getElementById('s-cyl').value);
+  const fc=parseFloat(document.getElementById('s-fc').value);
+  const {pred,nb}=knn(eng,cyl,fc,FE,K);
+  const ev=evalM(K);
+
+  document.getElementById('r2-m').textContent=ev.r2;
+  document.getElementById('mae-m').textContent=ev.mae;
+  document.getElementById('rmse-m').textContent=ev.rmse;
+
+  document.getElementById('co2-val').textContent=pred;
+  const [rt,rc]=pred<160?['Low emissions','rtag-low']:pred<230?['Moderate','rtag-mid']:['High emissions','rtag-high'];
+  document.getElementById('rtag-area').innerHTML=`<span class="rtag ${rc}">${rt}</span>`;
+  document.getElementById('res-info').innerHTML=
+    `Engine: ${eng.toFixed(1)} L &nbsp;|&nbsp; ${cyl} cyl<br>`+
+    `Fuel: ${FL}<br>`+
+    `Consumption: ${fc.toFixed(1)} L/100km<br>`+
+    `k = ${K} neighbors`;
+
+  const mx=Math.max(...nb.map(n=>n.co2));
+  document.getElementById('nb-rows').innerHTML=nb.map((n,i)=>`
+    <div class="nb-row">
+      <div class="nb-rank">${i+1}</div>
+      <div class="nb-track"><div class="nb-fill" style="width:${Math.round(n.co2/mx*100)}%"></div></div>
+      <div class="nb-val">${n.co2} g/km</div>
+    </div>`).join('');
+
+  const rb=document.getElementById('result-box');
+  rb.classList.add('show');
+
+  document.getElementById('ev-list').innerHTML=[
+    ['R² Score',ev.r2,'variance explained'],
+    ['MAE',ev.mae+' g/km','mean absolute error'],
+    ['RMSE',ev.rmse+' g/km','root mean squared'],
+    ['Test set','214 vehicles','20% holdout'],
+    ['Train set','853 vehicles','80% training']
+  ].map(([n,v,s])=>`<div class="ev-row"><span class="ev-name">${n}<br><span class="ev-sub">${s}</span></span><span class="ev-val">${v}</span></div>`).join('');
+
+  renderScatter(ev.actual,ev.pred);
+}
+
+function renderScatter(actual,pred){
+  if(scC)scC.destroy();
+  const pts=actual.map((a,i)=>({x:a,y:pred[i]}));
+  scC=new Chart(document.getElementById('sc-chart'),{
+    type:'scatter',
+    data:{datasets:[
+      {label:'Predictions',data:pts,
+        backgroundColor:'rgba(0,245,212,0.25)',
+        borderColor:'rgba(0,245,212,0.6)',
+        pointRadius:3.5,pointBorderWidth:0},
+      {label:'Perfect',data:[{x:100,y:100},{x:500,y:500}],type:'line',
+        borderColor:'rgba(247,37,133,0.7)',borderDash:[5,4],
+        borderWidth:2,pointRadius:0,fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{min:100,max:500,
+          title:{display:true,text:'Actual CO₂ (g/km)',color:'#7888bb',font:{size:11}},
+          grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#7888bb',font:{size:10}}},
+        y:{min:100,max:500,
+          title:{display:true,text:'Predicted (g/km)',color:'#7888bb',font:{size:11}},
+          grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#7888bb',font:{size:10}}}
+      }
+    }
+  });
+}
+
+// bar chart
+let barC2=null;
+function showBar(t){
+  ['eng','ft','vc'].forEach(x=>document.getElementById('et-'+x).classList.toggle('on',x===t));
+  buildBar(t);
+}
+
+function buildBar(t){
+  if(barC2)barC2.destroy();
+  let L,D,C,C2;
+  if(t==='eng'){
+    L=['1–2 L','2–3 L','3–4 L','4–5 L','5–6 L','6–7 L','8+ L'];
+    D=[194.7,232.9,262.0,318.7,344.4,356.0,389.0];
+    C='rgba(0,245,212,0.7)';C2='rgba(0,245,212,1)';
+  }else if(t==='ft'){
+    L=['Diesel (D)','Ethanol (E)','Regular (X)','Premium (Z)'];
+    D=[227.8,291.1,241.1,268.5];
+    C='rgba(247,37,133,0.7)';C2='rgba(247,37,133,1)';
+  }else{
+    L=['Compact','Full-size','Mid-size','Minicompact','Minivan','Pickup STD','Subcompact','SUV Small','SUV STD','Two-seater','Van Cargo','Van Pass'];
+    D=[216.7,267.7,226.5,235.6,260.1,309.1,252.6,242.7,307.7,265.7,361.5,401.0];
+    C='rgba(255,214,10,0.7)';C2='rgba(255,214,10,1)';
+  }
+  // Build gradient colors for each bar
+  const colors=D.map(v=>{
+    const pct=(v-100)/(500-100);
+    // interpolate teal → pink
+    const r=Math.round(0+pct*247),g=Math.round(245-pct*208),b=Math.round(212-pct*79);
+    return`rgba(${r},${g},${b},0.75)`;
+  });
+  barC2=new Chart(document.getElementById('bar-chart'),{
+    type:'bar',
+    data:{labels:L,datasets:[{
+      label:'Avg CO₂ (g/km)',data:D,
+      backgroundColor:colors,
+      borderColor:colors.map(c=>c.replace('0.75','1')),
+      borderWidth:1,borderRadius:6
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#7888bb',font:{size:10},maxRotation:45}},
+        y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#7888bb',font:{size:10}}}
+      }
+    }
+  });
+}
+
+buildBar('eng');
+</script>
+</body>
+</html>
